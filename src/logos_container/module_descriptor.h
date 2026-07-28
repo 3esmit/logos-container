@@ -3,6 +3,8 @@
 
 #include <any>
 #include <cstdint>
+#include <cstddef>
+#include <functional>
 #include <string>
 #include <vector>
 #include <nlohmann/json.hpp>
@@ -14,6 +16,69 @@
 // strategy interfaces that also consume them live in the core (liblogos).
 
 namespace LogosCore {
+
+// Complete identity of one loaded runtime. `moduleName` identifies the
+// package definition and `instanceId` identifies one independently managed
+// process. An empty instance ID is the legacy/default instance.
+struct ModuleAddress {
+    static constexpr std::size_t kMaxModuleNameBytes = 64;
+    // A scoped Indexer address commonly includes a 64-hex-character Channel
+    // ID plus its network scope, so it needs more room than a module name.
+    static constexpr std::size_t kMaxInstanceIdBytes = 128;
+
+    std::string moduleName;
+    std::string instanceId;
+
+    bool isDefaultInstance() const noexcept
+    {
+        return instanceId.empty();
+    }
+
+    bool isValid() const noexcept
+    {
+        return isValidRequiredSegment(moduleName, kMaxModuleNameBytes)
+            && (instanceId.empty()
+                || isValidRequiredSegment(instanceId, kMaxInstanceIdBytes));
+    }
+
+    friend bool operator==(const ModuleAddress& lhs, const ModuleAddress& rhs) noexcept
+    {
+        return lhs.moduleName == rhs.moduleName && lhs.instanceId == rhs.instanceId;
+    }
+
+    friend bool operator!=(const ModuleAddress& lhs, const ModuleAddress& rhs) noexcept
+    {
+        return !(lhs == rhs);
+    }
+
+private:
+    static bool isValidRequiredSegment(const std::string& value,
+                                       std::size_t maxBytes) noexcept
+    {
+        if (value.empty() || value.size() > maxBytes) return false;
+
+        for (const unsigned char character : value) {
+            const bool isLowercase = character >= 'a' && character <= 'z';
+            const bool isUppercase = character >= 'A' && character <= 'Z';
+            const bool isDigit = character >= '0' && character <= '9';
+            if (!isLowercase && !isUppercase && !isDigit
+                && character != '_' && character != '-') {
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
+struct ModuleAddressHash {
+    std::size_t operator()(const ModuleAddress& address) const noexcept
+    {
+        const std::size_t moduleHash = std::hash<std::string>{}(address.moduleName);
+        const std::size_t instanceHash = std::hash<std::string>{}(address.instanceId);
+        return moduleHash ^ (instanceHash + 0x9e3779b9U + (moduleHash << 6U)
+                             + (moduleHash >> 2U));
+    }
+};
 
 // Describes a module the core wants to load/launch.
 struct ModuleDescriptor {
@@ -33,6 +98,15 @@ struct ModuleDescriptor {
     // implementations so its LogosAPIProvider binds every transport
     // in the set rather than only the global default.
     std::string transportSetJson;
+
+    // Empty selects the legacy/default instance. Appended to preserve the
+    // field order used by existing aggregate initialization.
+    std::string instanceId;
+
+    ModuleAddress address() const
+    {
+        return {name, instanceId};
+    }
 };
 
 // A handle to a successfully loaded module. Stored in ModuleRegistry (ModuleInfo).
@@ -41,6 +115,15 @@ struct LoadedModuleHandle {
     int64_t pid = -1;      // -1 when not process-based (in-proc, wasm, remote, etc.)
     std::string endpoint;  // transport-specific URI, e.g. "qtro+unix://my_module"
     std::any opaque;       // loader-private state (optional)
+
+    // Appended to preserve the field order used by existing aggregate
+    // initialization. Empty means the legacy/default instance.
+    std::string instanceId;
+
+    ModuleAddress address() const
+    {
+        return {name, instanceId};
+    }
 };
 
 } // namespace LogosCore
