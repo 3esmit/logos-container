@@ -22,6 +22,6 @@
 
   meta = with pkgs.lib; {
     description = "Container contract: The Logos ModuleContainer interface, the module descriptor value types it exchanges, and the shared module-name allowlist";
-    platforms = platforms.unix;
+    platforms = platforms.unix ++ platforms.windows;
   };
 }
