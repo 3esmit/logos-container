@@ -15,7 +15,9 @@
       });
     in
     {
-      packages = forAllSystems ({ pkgs, system }:
+      # "x86_64-windows" pseudo-system: a cross derivation's `system` is its
+      # BUILD platform, so it evaluates anywhere and realises on x86_64-linux.
+      packages = logos-nix.lib.forAllTargets ({ pkgs, system, ... }:
         let
           # Common configuration
           common = import ./nix/default.nix { inherit pkgs; };
