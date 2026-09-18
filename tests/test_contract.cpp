@@ -179,6 +179,15 @@ public:
         return result;
     }
 
+    LogosCore::LoadOutcome awaitLoadInstance(
+        const LogosCore::ModuleAddress& address,
+        std::chrono::milliseconds) override
+    {
+        return hasInstance(address)
+            ? LogosCore::LoadOutcome{LogosCore::LoadVerdict::Loaded, {}}
+            : LogosCore::LoadOutcome{LogosCore::LoadVerdict::Failed, "not running"};
+    }
+
 private:
     struct Entry {
         std::function<void(const LogosCore::ModuleAddress&)> onTerminated;
@@ -242,6 +251,8 @@ TEST(ModuleContainer, ScopedInstancesRemainIndependent) {
     EXPECT_TRUE(container.sendTokenToInstance(paradox.address(), "paradox-token"));
     EXPECT_TRUE(container.hasInstance(lez.address()));
     EXPECT_TRUE(container.hasInstance(paradox.address()));
+    EXPECT_EQ(container.awaitLoadInstance(lez.address(), std::chrono::milliseconds{1}).verdict,
+              LogosCore::LoadVerdict::Loaded);
     EXPECT_NE(lezHandle.address(), paradoxHandle.address());
     EXPECT_NE(container.instancePid(lez.address()), container.instancePid(paradox.address()));
     EXPECT_EQ(container.getAllInstancePids().size(), 2U);
