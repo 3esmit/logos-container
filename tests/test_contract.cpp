@@ -8,6 +8,7 @@
 #include <logos_container/module_container.h>
 
 #include <functional>
+#include <chrono>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -196,6 +197,8 @@ TEST(ModuleContainer, InterfaceIsImplementable) {
     EXPECT_FALSE(c.hasModule("x"));
     EXPECT_FALSE(c.pid("x").has_value());        // default impl
     EXPECT_TRUE(c.getAllPids().empty());          // default impl
+    const auto outcome = c.awaitLoad("x", std::chrono::milliseconds{1});
+    EXPECT_EQ(outcome.verdict, LogosCore::LoadVerdict::Unknown);
 }
 
 TEST(ModuleContainer, LegacyContainerKeepsNameOnlyContract) {
